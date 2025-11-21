@@ -1,0 +1,409 @@
+"""
+YAGAMI UNIVERZE - Utility Modules
+utils/monitor.py
+"""
+
+import asyncio
+import logging
+import psutil
+import time
+from datetime import datetime
+from pathlib import Path
+from bot.config import Config
+
+logger = logging.getLogger(__name__)
+
+
+class SystemMonitor:
+    """Monitor system resources and bot health"""
+    
+    def __init__(self):
+        self.start_time = time.time()
+    
+    async def run(self):
+        """Run monitoring loop"""
+        logger.info("Starting system monitor...")
+        
+        while True:
+            try:
+                await self.check_health()
+                await asyncio.sleep(60)  # Check every minute
+            except Exception as e:
+                logger.error(f"Monitor error: {e}")
+                await asyncio.sleep(60)
+    
+    async def check_health(self):
+        """Check system health"""
+        
+        # CPU usage
+        cpu_percent = psutil.cpu_percent(interval=1)
+        
+        # Memory usage
+        memory = psutil.virtual_memory()
+        memory_percent = memory.percent
+        
+        # Disk usage
+        disk = psutil.disk_usage('/')
+        disk_percent = disk.percent
+        
+        # Log if high usage
+        if cpu_percent > 80:
+            logger.warning(f"High CPU usage: {cpu_percent}%")
+        
+        if memory_percent > 80:
+            logger.warning(f"High memory usage: {memory_percent}%")
+        
+        if disk_percent > 90:
+            logger.warning(f"High disk usage: {disk_percent}%")
+        
+        # Log health info
+        uptime = time.time() - self.start_time
+        logger.info(
+            f"Health: CPU={cpu_percent}% MEM={memory_percent}% "
+            f"DISK={disk_percent}% UPTIME={uptime:.0f}s"
+        )
+
+
+"""
+utils/rate_limiter.py
+"""
+
+import time
+from collections import defaultdict
+from typing import Dict
+
+
+class RateLimiter:
+    """Rate limiting for bot generations"""
+    
+    def __init__(self):
+        self.user_requests: Dict[int, list] = defaultdict(list)
+    
+    def can_generate(self, user_id: int, max_requests: int = 10, window: int = 3600) -> bool:
+        """
+        Check if user can generate a bot
+        
+        Args:
+            user_id: Telegram user ID
+            max_requests: Maximum requests allowed
+            window: Time window in seconds
+            
+        Returns:
+            True if allowed, False if rate limited
+        """
+        now = time.time()
+        
+        # Clean old requests
+        self.user_requests[user_id] = [
+            req_time for req_time in self.user_requests[user_id]
+            if now - req_time < window
+        ]
+        
+        # Check limit
+        if len(self.user_requests[user_id]) >= max_requests:
+            return False
+        
+        # Add new request
+        self.user_requests[user_id].append(now)
+        return True
+    
+    def get_wait_time(self, user_id: int, window: int = 3600) -> int:
+        """Get seconds until user can generate again"""
+        if not self.user_requests[user_id]:
+            return 0
+        
+        oldest_request = min(self.user_requests[user_id])
+        wait_time = window - (time.time() - oldest_request)
+        return max(0, int(wait_time))
+
+
+"""
+utils/logger.py
+"""
+
+import logging
+import sys
+from pathlib import Path
+from logging.handlers import RotatingFileHandler
+
+
+def setup_logger(name: str, log_file: Path, level=logging.INFO) -> logging.Logger:
+    """Setup logger with file and console handlers"""
+    
+    # Create logger
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    
+    # Create formatters
+    detailed_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
+    )
+    simple_formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s'
+    )
+    
+    # File handler (rotating)
+    file_handler = RotatingFileHandler(
+        log_file,
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(detailed_formatter)
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(simple_formatter)
+    
+    # Add handlers
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
+
+
+"""
+utils/validator.py
+"""
+
+import re
+from typing import Optional
+
+
+class Validator:
+    """Validate user inputs"""
+    
+    @staticmethod
+    def validate_github_url(url: str) -> Optional[str]:
+        """
+        Validate GitHub URL
+        
+        Returns:
+            Cleaned URL or None if invalid
+        """
+        pattern = r'https://github\.com/[\w-]+/[\w.-]+'
+        
+        if re.match(pattern, url):
+            return url.rstrip('/')
+        
+        return None
+    
+    @staticmethod
+    def validate_bot_name(name: str) -> bool:
+        """Validate bot name"""
+        # Must be alphanumeric with underscores
+        pattern = r'^[a-zA-Z][a-zA-Z0-9_]{2,30}$'
+        return bool(re.match(pattern, name))
+    
+    @staticmethod
+    def sanitize_filename(filename: str) -> str:
+        """Sanitize filename for safe filesystem use"""
+        # Remove or replace dangerous characters
+        filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
+        filename = filename.strip('. ')
+        return filename[:255]  # Max filename length
+
+
+"""
+utils/file_utils.py
+"""
+
+import aiofiles
+import hashlib
+from pathlib import Path
+from typing import Optional
+
+
+async def read_file_async(file_path: Path) -> Optional[str]:
+    """Asynchronously read file"""
+    try:
+        async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+            return await f.read()
+    except Exception:
+        return None
+
+
+async def write_file_async(file_path: Path, content: str):
+    """Asynchronously write file"""
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    async with aiofiles.open(file_path, 'w', encoding='utf-8') as f:
+        await f.write(content)
+
+
+def calculate_file_hash(file_path: Path) -> str:
+    """Calculate SHA256 hash of file"""
+    sha256_hash = hashlib.sha256()
+    
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    
+    return sha256_hash.hexdigest()
+
+
+def get_file_size_mb(file_path: Path) -> float:
+    """Get file size in MB"""
+    return file_path.stat().st_size / (1024 * 1024)
+
+
+"""
+utils/docker_utils.py
+"""
+
+import asyncio
+import logging
+from typing import Optional, Tuple
+
+logger = logging.getLogger(__name__)
+
+
+class DockerUtils:
+    """Docker utility functions"""
+    
+    @staticmethod
+    async def is_docker_available() -> bool:
+        """Check if Docker is available"""
+        try:
+            process = await asyncio.create_subprocess_exec(
+                'docker', '--version',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await process.communicate()
+            return process.returncode == 0
+        except FileNotFoundError:
+            return False
+    
+    @staticmethod
+    async def is_compose_available() -> bool:
+        """Check if Docker Compose is available"""
+        try:
+            process = await asyncio.create_subprocess_exec(
+                'docker-compose', '--version',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await process.communicate()
+            return process.returncode == 0
+        except FileNotFoundError:
+            return False
+    
+    @staticmethod
+    async def network_exists(network_name: str) -> bool:
+        """Check if Docker network exists"""
+        try:
+            process = await asyncio.create_subprocess_exec(
+                'docker', 'network', 'ls',
+                '--format', '{{.Name}}',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await process.communicate()
+            networks = stdout.decode().split('\n')
+            return network_name in networks
+        except Exception:
+            return False
+    
+    @staticmethod
+    async def create_network(network_name: str) -> bool:
+        """Create Docker network"""
+        try:
+            process = await asyncio.create_subprocess_exec(
+                'docker', 'network', 'create', network_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await process.communicate()
+            return process.returncode == 0
+        except Exception as e:
+            logger.error(f"Failed to create network: {e}")
+            return False
+    
+    @staticmethod
+    async def get_container_status(container_name: str) -> Optional[str]:
+        """Get container status"""
+        try:
+            process = await asyncio.create_subprocess_exec(
+                'docker', 'ps', '-a',
+                '--filter', f'name={container_name}',
+                '--format', '{{.Status}}',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await process.communicate()
+            status = stdout.decode().strip()
+            return status if status else None
+        except Exception:
+            return None
+
+
+"""
+utils/text_utils.py
+"""
+
+import re
+from typing import List
+
+
+def truncate_text(text: str, max_length: int = 4000, suffix: str = "...") -> str:
+    """Truncate text to max length"""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length - len(suffix)] + suffix
+
+
+def split_message(text: str, max_length: int = 4000) -> List[str]:
+    """Split long message into chunks"""
+    if len(text) <= max_length:
+        return [text]
+    
+    chunks = []
+    current_chunk = ""
+    
+    for line in text.split('\n'):
+        if len(current_chunk) + len(line) + 1 <= max_length:
+            current_chunk += line + '\n'
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = line + '\n'
+    
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    return chunks
+
+
+def format_duration(seconds: float) -> str:
+    """Format seconds into human readable duration"""
+    if seconds < 60:
+        return f"{seconds:.0f}s"
+    elif seconds < 3600:
+        minutes = seconds / 60
+        return f"{minutes:.1f}m"
+    else:
+        hours = seconds / 3600
+        return f"{hours:.1f}h"
+
+
+def extract_code_blocks(text: str) -> List[str]:
+    """Extract code blocks from markdown text"""
+    pattern = r'```(?:\w+)?\n(.*?)```'
+    matches = re.findall(pattern, text, re.DOTALL)
+    return matches
+
+
+def clean_markdown(text: str) -> str:
+    """Remove markdown formatting"""
+    # Remove code blocks
+    text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+    # Remove inline code
+    text = re.sub(r'`.*?`', '', text)
+    # Remove bold
+    text = re.sub(r'\*\*.*?\*\*', '', text)
+    # Remove italic
+    text = re.sub(r'\*.*?\*', '', text)
+    # Remove links
+    text = re.sub(r'\[.*?\]\(.*?\)', '', text)
+    return text.strip()
