@@ -1,0 +1,686 @@
+# 🔥 YAGAMI UNIVERZE - Complete Deployment Guide
+
+## 📁 Complete Repository Structure
+
+```
+yagami_univerze/
+│
+├── bot/
+│   ├── __init__.py
+│   ├── main.py                    # Main bot entry point
+│   ├── config.py                  # Configuration management
+│   │
+│   ├── handlers/
+│   │   ├── __init__.py
+│   │   ├── start_handler.py       # /start command
+│   │   ├── generate_handler.py    # Bot generation
+│   │   ├── repo_scan_handler.py   # GitHub scanning
+│   │   └── deploy_handler.py      # Deployment management
+│   │
+│   └── database/
+│       ├── __init__.py
+│       ├── models.py              # SQLAlchemy models
+│       └── database.py            # Database manager
+│
+├── generator_engine/
+│   ├── __init__.py
+│   ├── ai_generator.py            # AI code generation
+│   ├── repo_scanner.py            # GitHub repo scanner
+│   └── code_writer.py             # File system writer
+│
+├── utils/
+│   ├── __init__.py
+│   ├── monitor.py                 # System monitoring
+│   ├── rate_limiter.py            # Rate limiting
+│   ├── logger.py                  # Logging setup
+│   ├── validator.py               # Input validation
+│   ├── file_utils.py              # File operations
+│   ├── docker_utils.py            # Docker utilities
+│   └── text_utils.py              # Text processing
+│
+├── deployment/
+│   ├── Dockerfile                 # Main bot container
+│   ├── docker-compose.yml         # Docker orchestration
+│   └── supervisor.conf            # Process supervision
+│
+├── generated_bots/                # Generated bots storage
+│   └── .gitkeep
+│
+├── logs/                          # Log files
+│   └── .gitkeep
+│
+├── temp/                          # Temporary files
+│   └── .gitkeep
+│
+├── tests/                         # Test files
+│   ├── __init__.py
+│   ├── test_generator.py
+│   ├── test_scanner.py
+│   └── test_handlers.py
+│
+├── requirements.txt               # Python dependencies
+├── .env.example                   # Environment template
+├── .env                           # Environment config (not in git)
+├── .gitignore                     # Git ignore rules
+├── .dockerignore                  # Docker ignore rules
+├── setup.sh                       # Setup script
+├── Makefile                       # Build automation
+├── README.md                      # Main documentation
+├── CONTRIBUTING.md                # Contribution guide
+├── LICENSE                        # MIT License
+└── main.py                        # Entry point (imports from bot/main.py)
+```
+
+---
+
+## 🚀 Step-by-Step Deployment
+
+### Option 1: Quick Deploy (Docker - Recommended)
+
+```bash
+# 1. Clone repository
+git clone https://github.com/yourusername/yagami-univerze.git
+cd yagami-univerze
+
+# 2. Run automated setup
+bash setup.sh
+
+# 3. Configure environment
+nano .env
+# Fill in:
+#   - API_ID (from my.telegram.org)
+#   - API_HASH (from my.telegram.org)  
+#   - BOT_TOKEN (from @BotFather)
+#   - ANTHROPIC_API_KEY (from console.anthropic.com)
+#   - ADMIN_ID (your Telegram user ID)
+
+# 4. Deploy
+docker-compose up -d
+
+# 5. Check logs
+docker-compose logs -f
+```
+
+**That's it! Your bot is now running! 🎉**
+
+---
+
+### Option 2: Manual Deployment
+
+#### Prerequisites
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Log out and back in for group changes
+```
+
+#### Setup Steps
+```bash
+# 1. Clone
+git clone https://github.com/yourusername/yagami-univerze.git
+cd yagami-univerze
+
+# 2. Create environment file
+cp .env.example .env
+
+# 3. Edit .env with your credentials
+nano .env
+
+# 4. Create Docker network
+docker network create yagami_network
+
+# 5. Create directories
+mkdir -p logs generated_bots temp
+
+# 6. Build image
+docker-compose build
+
+# 7. Start bot
+docker-compose up -d
+
+# 8. Verify it's running
+docker-compose ps
+docker-compose logs -f
+```
+
+---
+
+### Option 3: Local Development (No Docker)
+
+```bash
+# 1. Clone repository
+git clone https://github.com/yourusername/yagami-univerze.git
+cd yagami-univerze
+
+# 2. Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Configure environment
+cp .env.example .env
+nano .env
+
+# 5. Create directories
+mkdir -p logs generated_bots temp
+
+# 6. Run bot
+python main.py
+```
+
+---
+
+## 🔧 Configuration Guide
+
+### Required Environment Variables
+
+Create `.env` file with:
+
+```env
+# === REQUIRED ===
+
+# Telegram API credentials (get from https://my.telegram.org)
+API_ID=12345678
+API_HASH=your_32_character_hash_here
+
+# Bot token (get from @BotFather on Telegram)
+BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz-123456
+
+# Your Telegram user ID (get from @userinfobot)
+ADMIN_ID=123456789
+
+# AI API Key - choose ONE:
+# Option A: Anthropic Claude (recommended)
+ANTHROPIC_API_KEY=sk-ant-api03-xxxxxxxxxxxxx
+AI_PROVIDER=anthropic
+
+# Option B: OpenAI GPT-4
+# OPENAI_API_KEY=sk-xxxxxxxxxxxxx
+# AI_PROVIDER=openai
+
+# === OPTIONAL ===
+
+# GitHub token for private repos (get from github.com/settings/tokens)
+GITHUB_TOKEN=ghp_xxxxxxxxxxxxx
+
+# Bot workers (default: 8)
+WORKERS=8
+
+# Max concurrent generations (default: 3)
+MAX_CONCURRENT_GENERATIONS=3
+
+# Rate limiting
+MAX_GENERATIONS_PER_USER=10
+GENERATION_COOLDOWN=60
+
+# Docker network
+DOCKER_NETWORK=yagami_network
+
+# Database (default: SQLite)
+DATABASE_URL=sqlite:///yagami.db
+
+# Logging
+LOG_LEVEL=INFO
+
+# Security
+ALLOWED_USERS=  # comma-separated user IDs, empty = allow all
+```
+
+### Getting Credentials
+
+1. **Telegram API ID & Hash**
+   - Visit: https://my.telegram.org
+   - Login with your phone number
+   - Go to "API Development Tools"
+   - Create an app
+   - Copy `api_id` and `api_hash`
+
+2. **Bot Token**
+   - Message [@BotFather](https://t.me/BotFather) on Telegram
+   - Send `/newbot`
+   - Follow instructions
+   - Copy the token
+
+3. **Your User ID**
+   - Message [@userinfobot](https://t.me/userinfobot) on Telegram
+   - It will reply with your user ID
+
+4. **Anthropic API Key**
+   - Visit: https://console.anthropic.com/
+   - Sign up / login
+   - Go to API Keys
+   - Create new key
+   - Copy the key (starts with `sk-ant-`)
+
+5. **GitHub Token** (optional)
+   - Visit: https://github.com/settings/tokens
+   - Generate new token (classic)
+   - Select scope: `repo`
+   - Copy the token
+
+---
+
+## 📊 Managing the Bot
+
+### Docker Commands
+
+```bash
+# Start bot
+docker-compose up -d
+
+# Stop bot
+docker-compose down
+
+# Restart bot
+docker-compose restart
+
+# View logs (real-time)
+docker-compose logs -f
+
+# View logs (last 100 lines)
+docker-compose logs --tail=100
+
+# Check status
+docker-compose ps
+
+# View resource usage
+docker stats yagami_univerze
+
+# Rebuild and restart
+docker-compose up --build -d
+
+# Enter container shell
+docker-compose exec yagami_univerze /bin/bash
+
+# Remove everything (including volumes)
+docker-compose down -v
+```
+
+### Makefile Commands (if you have make installed)
+
+```bash
+make help       # Show all commands
+make setup      # Run setup script
+make up         # Start bot
+make down       # Stop bot
+make restart    # Restart bot
+make logs       # View logs
+make status     # Check status
+make clean      # Clean temp files
+make backup     # Backup generated bots
+```
+
+### Monitoring
+
+```bash
+# Check if bot is responding
+# Send /start to your bot on Telegram
+
+# View logs
+tail -f logs/yagami.log
+
+# Check disk space
+df -h
+
+# Check memory usage
+free -h
+
+# Check Docker containers
+docker ps -a
+
+# View generated bots
+ls -lh generated_bots/
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Bot doesn't start
+
+**Check logs:**
+```bash
+docker-compose logs yagami_univerze
+```
+
+**Common issues:**
+- Missing environment variables → Edit `.env`
+- Invalid API credentials → Check on my.telegram.org
+- Port already in use → Change port in docker-compose.yml
+- Docker not running → `sudo systemctl start docker`
+
+**Solution:**
+```bash
+# Verify .env file
+cat .env
+
+# Rebuild container
+docker-compose down
+docker-compose up --build -d
+
+# Check logs
+docker-compose logs -f
+```
+
+### Generation fails
+
+**Symptoms:** Bot responds but generation errors occur
+
+**Common causes:**
+- Invalid AI API key
+- API rate limit exceeded
+- Network issues
+
+**Check:**
+```bash
+# Test AI API
+curl https://api.anthropic.com/v1/messages \
+  -H "x-api-key: YOUR_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{"model":"claude-sonnet-4-20250514","max_tokens":1024,"messages":[{"role":"user","content":"test"}]}'
+
+# View detailed logs
+docker-compose logs -f | grep -i error
+```
+
+### GitHub scanning fails
+
+**Issue:** Can't scan repositories
+
+**Solutions:**
+- For public repos: Check internet connection
+- For private repos: Add `GITHUB_TOKEN` to `.env`
+- Verify repo URL is correct
+
+```bash
+# Test GitHub API
+curl -H "Authorization: token YOUR_GITHUB_TOKEN" \
+  https://api.github.com/user
+```
+
+### Deployment fails
+
+**Issue:** Generated bots won't deploy
+
+**Check:**
+1. Docker is running
+2. `.env` file exists in bot directory
+3. Docker network exists
+
+```bash
+# Check Docker
+docker ps
+
+# Check network
+docker network ls | grep yagami
+
+# Create network if missing
+docker network create yagami_network
+
+# Check bot directory
+cd generated_bots/your_bot_name
+ls -la
+cat .env
+```
+
+### Permission denied errors
+
+**Issue:** Can't write files or access Docker
+
+**Solutions:**
+```bash
+# Fix file permissions
+sudo chown -R $USER:$USER .
+chmod -R 755 generated_bots logs temp
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+# Log out and back in
+
+# Check Docker socket
+ls -l /var/run/docker.sock
+```
+
+---
+
+## 🔄 Updating
+
+### Update Bot Code
+
+```bash
+# Stop bot
+docker-compose down
+
+# Pull latest changes
+git pull origin main
+
+# Rebuild and start
+docker-compose up --build -d
+
+# Check logs
+docker-compose logs -f
+```
+
+### Update Dependencies
+
+```bash
+# Edit requirements.txt
+nano requirements.txt
+
+# Rebuild
+docker-compose up --build -d
+```
+
+---
+
+## 💾 Backup & Recovery
+
+### Backup
+
+```bash
+# Backup generated bots
+tar -czf backup_bots_$(date +%Y%m%d).tar.gz generated_bots/
+
+# Backup configuration
+cp .env .env.backup_$(date +%Y%m%d)
+
+# Backup database (if using SQLite)
+cp yagami.db yagami.db.backup_$(date +%Y%m%d)
+
+# Full backup
+tar -czf full_backup_$(date +%Y%m%d).tar.gz \
+  generated_bots/ .env yagami.db logs/
+```
+
+### Restore
+
+```bash
+# Restore generated bots
+tar -xzf backup_bots_20240101.tar.gz
+
+# Restore configuration
+cp .env.backup_20240101 .env
+
+# Restore database
+cp yagami.db.backup_20240101 yagami.db
+
+# Restart bot
+docker-compose restart
+```
+
+### Automated Backups (cron)
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add daily backup at 2 AM
+0 2 * * * cd /path/to/yagami-univerze && tar -czf backup_$(date +\%Y\%m\%d).tar.gz generated_bots/ .env
+
+# Keep only last 7 days of backups
+0 3 * * * find /path/to/yagami-univerze -name "backup_*.tar.gz" -mtime +7 -delete
+```
+
+---
+
+## 🔐 Security Hardening
+
+### Production Security Checklist
+
+- [ ] Never commit `.env` to Git
+- [ ] Use strong, unique bot tokens
+- [ ] Enable `ALLOWED_USERS` to restrict access
+- [ ] Enable rate limiting
+- [ ] Use HTTPS for webhooks
+- [ ] Keep Docker and dependencies updated
+- [ ] Enable firewall on VPS
+- [ ] Use fail2ban for SSH protection
+- [ ] Regular security audits
+- [ ] Monitor logs for suspicious activity
+- [ ] Backup regularly
+- [ ] Use secrets management (e.g., Docker secrets)
+
+### Firewall Setup (UFW)
+
+```bash
+# Install UFW
+sudo apt install ufw
+
+# Allow SSH
+sudo ufw allow 22/tcp
+
+# Allow HTTP/HTTPS (if using webhooks)
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# Enable firewall
+sudo ufw enable
+
+# Check status
+sudo ufw status
+```
+
+### SSL/TLS for Webhooks
+
+```bash
+# Install Certbot
+sudo apt install certbot
+
+# Get certificate
+sudo certbot certonly --standalone -d bot.yourdomain.com
+
+# Certificates will be in:
+# /etc/letsencrypt/live/bot.yourdomain.com/
+```
+
+---
+
+## 📈 Performance Optimization
+
+### For High Traffic
+
+Edit `docker-compose.yml`:
+
+```yaml
+services:
+  yagami_univerze:
+    # ... existing config ...
+    environment:
+      - WORKERS=16  # Increase workers
+      - MAX_CONCURRENT_GENERATIONS=5
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+```
+
+### Database Optimization
+
+Use PostgreSQL for better performance:
+
+```bash
+# Install PostgreSQL
+docker run -d \
+  --name yagami_postgres \
+  --network yagami_network \
+  -e POSTGRES_PASSWORD=yourpassword \
+  -e POSTGRES_DB=yagami \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:15
+
+# Update .env
+DATABASE_URL=postgresql://postgres:yourpassword@yagami_postgres/yagami
+```
+
+---
+
+## 🎯 Advanced Configuration
+
+### Multiple Bot Instances
+
+Run multiple YAGAMI bots for different purposes:
+
+```bash
+# Create instance 2
+cp docker-compose.yml docker-compose.instance2.yml
+
+# Edit docker-compose.instance2.yml
+# Change: container_name, ports, volumes
+
+# Start instance 2
+docker-compose -f docker-compose.instance2.yml up -d
+```
+
+### Custom Networks
+
+```bash
+# Create custom network
+docker network create \
+  --driver bridge \
+  --subnet 172.28.0.0/16 \
+  --gateway 172.28.0.1 \
+  yagami_custom_network
+
+# Update docker-compose.yml to use it
+```
+
+---
+
+## 📞 Getting Help
+
+- **GitHub Issues**: https://github.com/yourusername/yagami-univerze/issues
+- **Documentation**: Check README.md
+- **Logs**: `docker-compose logs -f`
+- **Community**: Join our Telegram group
+
+---
+
+## ✅ Post-Deployment Checklist
+
+- [ ] Bot responds to /start
+- [ ] Bot can generate simple bots
+- [ ] Bot can scan GitHub repos
+- [ ] Logs are being written
+- [ ] Docker auto-restart is enabled
+- [ ] Backups are configured
+- [ ] Firewall is enabled
+- [ ] SSL/TLS configured (if using webhooks)
+- [ ] Monitoring is active
+- [ ] Admin notifications working
+
+---
+
+**🔥 Your YAGAMI UNIVERZE bot is now ready to generate unlimited Telegram bots!**
+
+**Happy bot generating! 🤖**
