@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  yagami_univerze:
+    build: .
+    container_name: yagami_univerze
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Bot data
+      - ./generated_bots:/app/generated_bots
+      - ./logs:/app/logs
+      - ./temp:/app/temp
+      # Docker socket for deploying generated bots
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - yagami_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  yagami_network:
+    name: yagami_network
+    driver: bridge
